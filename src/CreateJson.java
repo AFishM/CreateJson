@@ -6,18 +6,36 @@ import java.io.*;
 public class CreateJson {
     public static void main(String[] args) {
         String relativePath="/1/2/3/4";
+        boolean isPhp=true;
         File file=createJsonFile(relativePath);
 
         int lastIndexOfSeparator = relativePath.lastIndexOf("/");
-        String filePath = relativePath.substring(1, lastIndexOfSeparator);
+        String requestUri = relativePath.substring(0, lastIndexOfSeparator);
+        String phpResponse="\t\t\t\"code\" : 1000,\n" +
+                "\t\t\t\"bcode\" : 0,\n" +
+                "\t\t\t\"message\" : \"\",\n" +
+                "\t\t\t\"content\" : null,\n" +
+                "\t\t\t\"timeStamp\" : 1234567890\n" ;
+        String netOrJavaResponse="\t\t\t\"statusCode\" : 200,\n" +
+                "\t\t\t\"success\" : true,\n" +
+                "\t\t\t\"message\" : \"\",\n" +
+                "\t\t\t\"identity\" : \"\",\n" +
+                "\t\t\t\"data\" : null,\n" +
+                "\t\t\t\"timeStamp\" : 1234567890\n" ;
+        String responseStr;
+        if(isPhp){
+            responseStr=phpResponse;
+        }else{
+            responseStr=netOrJavaResponse;
+        }
         String jsonStr="[\n" +
                 "\t{\n" +
                 "\t\t\"request\" : {\n" +
                 "\t\t\t\"method\" : \"\",\n" +
-                "\t\t\t\"uri\" : \""+filePath+"\"\n" +
+                "\t\t\t\"uri\" : \""+requestUri+"\"\n" +
                 "\t\t},\n" +
                 "\t\t\"response\" : {\n" +
-                "\n" +
+                responseStr +
                 "\t\t}\n" +
                 "\t}\n" +
                 "]";
@@ -33,9 +51,8 @@ public class CreateJson {
     }
 
     private static File createJsonFile(String relativePath) {
-        relativePath=relativePath.substring(1);
         int lastIndexOfSeparator = relativePath.lastIndexOf("/");
-        String filePath = relativePath.substring(0, lastIndexOfSeparator);
+        String filePath = relativePath.substring(1, lastIndexOfSeparator);
         File dir = new File(filePath);
         if (!dir.exists()) {
             boolean makeDirsSuccess = dir.mkdirs();
@@ -56,4 +73,6 @@ public class CreateJson {
         }
         return jsonFile;
     }
+
+
 }
