@@ -11,21 +11,33 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * make json data for moco
  * Created by xuzixu on 2017/6/19.
  */
 public class CreateJson {
     public static void main(String[] args) {
-        String entityClassFileName = "E:\\studyProjectNew\\Dell.java";
+        if (args.length < 3) {
+            System.out.println("please enter necessary args");
+            return;
+        }
+        String entityClassFileName = args[0];
+        if (!entityClassFileName.contains(File.separator)) {
+            String currentDir=System.getProperty("user.dir");
+            entityClassFileName = currentDir+File.separator + entityClassFileName;
+        }
+        String relativePath = args[1];
+        boolean isPhp = args[2].toLowerCase().equals("true");
+
         File entityFile = new File(entityClassFileName);
         removeEntityClassPackageName(entityFile);
         compile(entityFile);
-        String className=entityFile.getName().split("\\.")[0];
-        String responseJsonStr=entityConvertToJsonStr(className, entityFile.getParent());
-        deleteFile(className,entityFile.getParent());
+        String className = entityFile.getName().split("\\.")[0];
+        String responseJsonStr = entityConvertToJsonStr(className, entityFile.getParentFile().getAbsolutePath());
+        deleteFile(className, entityFile.getParent());
 
-        String relativePath="/1/2/3/4";
-        File jsonFile=createJsonFile(relativePath);
-        writeJsonToFile(responseJsonStr,jsonFile,relativePath,true);
+        File jsonFile = createJsonFile(relativePath);
+        writeJsonToFile(responseJsonStr, jsonFile, relativePath, isPhp);
+        includeToServer(relativePath);
     }
 
     private static void removeEntityClassPackageName(File entityClassFileName) {
@@ -37,7 +49,7 @@ public class CreateJson {
                 if (line.contains("package")) {
                     continue;
                 }
-                fileContent = fileContent + line;
+                fileContent = fileContent + line + "\n";
             }
             bufferedReader.close();
             FileWriter fileWriter = new FileWriter(entityClassFileName);
@@ -63,14 +75,14 @@ public class CreateJson {
 
     private static String entityConvertToJsonStr(String className, String targetClassPath) {
         try {
-            URL classUrl = new URL("file:/" + targetClassPath+"/");
+            URL classUrl = new URL("file:/" + targetClassPath + "/");
             URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl}, CreateJson.class.getClassLoader());
             Class entityClass = urlClassLoader.loadClass(className);
             Object object = classToObject(entityClass, null, null);
             Gson gson = new Gson();
-            String json=gson.toJson(object);
-            String formatJsonStr= formatJson(json);
-            formatJsonStr=formatJsonStr.replaceAll("\"","\\\"");
+            String json = gson.toJson(object);
+            String formatJsonStr = formatJson(json);
+            formatJsonStr = formatJsonStr.replaceAll("\"", "\\\"");
             return formatJsonStr;
         } catch (Exception e) {
             e.printStackTrace();
@@ -164,7 +176,7 @@ public class CreateJson {
     private static String formatJson(String jsonStr) {
         if (null == jsonStr || "".equals(jsonStr)) return "";
         StringBuilder sb = new StringBuilder();
-        char current = '\0';
+        char current;
         int indent = 0;
         for (int i = 0; i < jsonStr.length(); i++) {
             current = jsonStr.charAt(i);
@@ -196,7 +208,7 @@ public class CreateJson {
     }
 
     private static void addIndentBlank(StringBuilder sb, int indent) {
-        indent=indent+4;
+        indent = indent + 4;
         for (int i = 0; i < indent; i++) {
             sb.append('\t');
         }
@@ -227,18 +239,16 @@ public class CreateJson {
     }
 
     private static void writeJsonToFile(String responseJsonString, File jsonFile, String relativePath, boolean isPhp) {
-        int lastIndexOfSeparator = relativePath.lastIndexOf("/");
-        String requestUri = relativePath.substring(0, lastIndexOfSeparator);
         String phpResponse = "\t\t\t\t\"code\" : 1000,\n" +
                 "\t\t\t\t\"bcode\" : 0,\n" +
                 "\t\t\t\t\"message\" : \"\",\n" +
-                "\t\t\t\t\"content\" : "+responseJsonString+",\n" +
+                "\t\t\t\t\"content\" : " + responseJsonString + ",\n" +
                 "\t\t\t\t\"timeStamp\" : 1234567890\n";
         String netOrJavaResponse = "\t\t\t\"statusCode\" : 200,\n" +
                 "\t\t\t\t\"success\" : true,\n" +
                 "\t\t\t\t\"message\" : \"\",\n" +
                 "\t\t\t\t\"identity\" : \"\",\n" +
-                "\t\t\t\t\"data\" : "+responseJsonString+",\n" +
+                "\t\t\t\t\"data\" : " + responseJsonString + ",\n" +
                 "\t\t\t\t\"timeStamp\" : 1234567890\n";
         String responseStr;
         if (isPhp) {
@@ -250,7 +260,7 @@ public class CreateJson {
                 "\t{\n" +
                 "\t\t\"request\" : {\n" +
                 "\t\t\t\"method\" : \"get\",\n" +
-                "\t\t\t\"uri\" : \""+requestUri+"\"\n" +
+                "\t\t\t\"uri\" : \"" + relativePath + "\"\n" +
                 "\t\t},\n" +
                 "\t\t\"response\" : {\n" +
                 "\t\t\t\"json\" : {\n" +
@@ -275,10 +285,43 @@ public class CreateJson {
         File dir = new File(classLocation);
         File[] files = dir.listFiles();
         for (File file : files) {
-            if (file.getName().contains(className)&&file.getName().contains(".class")) {
+            if (file.getName().contains(className) && file.getName().contains(".class")) {
                 result = result & file.delete();
             }
         }
         return result;
+    }
+
+    private static void includeToServer(String relativePath) {
+        relativePath = relativePath.substring(1);
+        String includeString = "\t{\n" +
+                "\t\t\"include\" : \"" + relativePath + ".json\"\n" +
+                "\t}";
+        File file = new File("./server.json");
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(file));
+            String fileContent = "";
+            String line;
+            boolean justAddIncludeString = false;
+            while ((line = bufferedReader.readLine()) != null) {
+                if (line.contains("[")) {
+                    fileContent = fileContent + line + "\n" + includeString;
+                    justAddIncludeString = true;
+                    continue;
+                }
+                if (justAddIncludeString && line.contains("{")) {
+                    fileContent = fileContent + ",\n" + line;
+                } else {
+                    fileContent = fileContent + "\n" + line;
+                }
+                justAddIncludeString = false;
+            }
+            FileWriter fileWriter = new FileWriter(file);
+            fileWriter.write(fileContent);
+            fileWriter.close();
+        } catch (Exception e) {
+            System.out.println("includeToServer e=> " + e.toString());
+            e.printStackTrace();
+        }
     }
 }
